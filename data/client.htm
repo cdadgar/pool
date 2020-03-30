@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="icon" type="image/x-icon" href="favicon.ico"/>
+<link rel='stylesheet' href='https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css'>
+<script src='https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js'></script>
+<script src='https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js'></script>
+<script src='common.js'></script>
+<script>
+
+$(document).ready(function(){
+  initWebsocket('client');
+});
+
+function message(msg){
+console.log('onmessage ' + msg.data);
+  $('#airTemp').html(parseInt(msg.data) / 10);
+}
+</script>
+</head>
+<body>
+<div id='message' style='zoom:200%;'></div>
+<div id='controls'>
+  <div style='zoom:200%;'>
+    Air:<span id='airTemp' class='ui-widget'></span><br>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="icon" type="image/x-icon" href="favicon.ico"/>
+<link rel='stylesheet' href='https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css'>
+<script src='https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js'></script>
+<script src='https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js'></script>
+<script src='common.js'></script>
+<script>
+var log_url;
+
+$(document).ready(function(){
+  initGui();
+  initWebsocket('');
+});
+
+function message(msg){
+console.log('onmessage ' + msg.data);
+  var obj = JSON.parse(msg.data);
+  if (obj.command.endsWith('Mode'))
+    $('#' + obj.command + obj.value).prop('checked', true).button('refresh');
+  else if (obj.command == 'log_url')
+	log_url = obj.value;
+  else {
+    var extra = '';
+    if (obj.value != '' && obj.command.endsWith('Temp')) {
+      if (obj.value == '-999.0')
+        return;
+      extra = '&deg;';
+    }
+    else if (obj.value != '' && obj.command == 'pressure') {
+        if (obj.value == '-999.0')
+          return;
+        extra = 'psi';
+      }
+    $('#'+obj.command).html(obj.value + extra);
+  }
+}
+
+function initGui(){
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent))
+    document.body.style.zoom = '420%';
+  else
+    document.body.style.zoom = '150%';
+
+  $('#pumpMode').buttonset();
+  $('#solarMode').buttonset();
+  
+  $(':radio').click(function() {
+    var json = {
+      command: this.name,
+      value: this.value
+    };
+    socket.send(JSON.stringify(json));
+  });
+ 
+  $('#tempUp').button().click(function(event) {
+    var json = {
+      command: 'tempUp'
+    };
+    socket.send(JSON.stringify(json));
+  });
+
+  $('#tempDown').button().click(function(event) {
+    var json = {
+      command: 'tempDown'
+    };
+    socket.send(JSON.stringify(json));
+  });
+
+  $('#prog').button().click(function(event) {
+   window.location.href='./program.htm';
+  });
+
+  $('#setup').button().click(function(event) {
+    window.location.href='./setup.htm';
+  });
+
+  $('#test').button().click(function(event) {
+    window.location.href='./test.htm';
+  });
+
+  $('#log').button().click(function(event) {
+    window.open(log_url, '_blank');
+  });
+}
+</script>
+</head>
+<body>
+<div id='message' style='zoom:200%;'></div>
+<div id='controls'>
+  <div style='zoom:200%;'>
+    <span id='time' class='ui-widget'></span><br>
+    Roof:<span id='roofTemp' class='ui-widget'></span><br>
+    Air:<span id='airTemp' class='ui-widget'></span><br>
+    Pool:<span id='poolTemp' class='ui-widget'></span><br>
+    Target:<span id='targetTemp' class='ui-widget'></span><br>
+    Pump:<span id='pump' class='ui-widget'></span><br>
+    Solar:<span id='solar' class='ui-widget'></span><br>
+    Pressure:<span id='pressure' class='ui-widget'></span><br>
+  </div>
+  <br>
+  <div id='pumpMode'>
+    <label for='pumpMode' class='ui-widget'>Pump:</label>
+    <input type='radio' id='pumpMode0' name='pumpMode' value='0'><label for='pumpMode0'>On</label>
+    <input type='radio' id='pumpMode1' name='pumpMode' value='1'><label for='pumpMode1'>Off</label> 
+    <input type='radio' id='pumpMode2' name='pumpMode' value='2'><label for='pumpMode2'>Auto</label> 
+  </div>
+  <br>
+  <div id='solarMode'>
+    <label for='solarMode' class='ui-widget'>Solar:</label>
+    <input type='radio' id='solarMode0' name='solarMode' value='0'><label for='solarMode0'>On</label>
+    <input type='radio' id='solarMode1' name='solarMode' value='1'><label for='solarMode1'>Off</label> 
+    <input type='radio' id='solarMode2' name='solarMode' value='2'><label for='solarMode2'>Auto</label> 
+  </div>
+  <br>
+  <label for='temp' class='ui-widget'>Temp:</label>
+  <button id='tempUp'>Up</button>
+  <button id='tempDown'>Down</button>
+  <br><br>
+  <button id='prog'>Program</button>
+  <button id='setup'>Setup</button>
+  <br><br>
+  <button id='test'>Test</button>
+  <button id='log'>Log</button>
+</div>
+</body>
+</html>

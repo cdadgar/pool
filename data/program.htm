@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="icon" type="image/x-icon" href="favicon.ico"/>
+<link rel='stylesheet' href='https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css'>
+<style>
+.pressureLabel {
+  float:left;
+  width:100px;
+}
+#pressureLow {
+  width: 30px;
+}
+#pressureHigh {
+  width: 30px;
+}
+</style>
+<script src='https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js'></script>
+<script src='https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js'></script>
+<script src='common.js'></script>
+<script>
+$(document).ready(function(){
+  initGui();
+  initWebsocket('program');
+});
+
+function message(msg){
+  console.log('onmessage ' + msg.data + ' ' + msg.data.length);
+  var obj = JSON.parse(msg.data);
+  $('#pumpStart').val(obj.pumpStart);
+  $('#pumpStop').val(obj.pumpStop);
+  $('#targetTemp').val(obj.targetTemp);
+  $('#pressureLow').val(obj.pressureLow);
+  $('#pressureHigh').val(obj.pressureHigh);
+}
+
+function initGui(){
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent))
+    document.body.style.zoom = '260%';
+  else
+    document.body.style.zoom = '120%';
+
+  // create the start and stop time dropdowns
+  var names = [ 'Start', 'Stop' ];
+  var str = "";
+  for (var j=0; j < 2; ++j) {
+    str += "<label for='pump"+names[j]+"'>Pump "+names[j]+" Time:</label>";
+    str += "&nbsp;&nbsp;<select name='pump"+names[j]+"' id='pump"+names[j]+"'>";
+    str += "<option value='255'>Off</option>";
+    for (var i=0; i < 96; ++i) {
+      var ampm = 'am';
+      var h = Math.floor(i/4);
+      var m = i%4*15;
+      if (m==0)
+        m = '00';
+      if (h==0)
+        h = 12;
+      else if (h==12)
+        ampm = 'pm';
+      else if (h > 12) {
+        h -= 12;
+        ampm = 'pm';
+      }
+      var time = h + ':' + m + ampm;
+      str += "<option value='"+i+"'>"+time+"</option>";
+    }
+    str += '</select>';
+    str += '<br><br>';
+  }
+
+  str += "<label for='targetTemp'>Target Temperature:</label>";
+  str += "<select name='targetTemp' id='targetTemp'>";
+  for (var i=70; i < 120; ++i) {
+    str += "<option value='"+i+"'>"+i+'</option>';
+  }
+  str += '</select>';
+
+  var gui = $('#gui');
+  gui.append(str);
+
+  $('#save').button().click(function(event) {
+    doSave();
+    close();
+  });
+
+  $('#cancel').button().click(function(event) {
+    close();
+  });
+}
+
+function close() {
+  window.location.href='index.htm';
+}
+
+function doSave() {
+  var json = {
+    command: 'save',
+    pumpStart: $('#pumpStart').val(),
+    pumpStop: $('#pumpStop').val(),
+    targetTemp: $('#targetTemp').val(),
+    pressureLow: $('#pressureLow').val(),
+    pressureHigh: $('#pressureHigh').val()
+  };
+console.log(JSON.stringify(json));
+  socket.send(JSON.stringify(json));
+} 
+</script>
+</head>
+<body>
+<div id='message' style='zoom:200%;'></div>
+<div id='controls'>
+  <div id='gui'></div><br>
+  <label class='pressureLabel'>Low Pressure:</label><input id='pressureLow'><br><br>
+  <label class='pressureLabel'>High Pressure:</label><input id='pressureHigh'><br><br>
+  <button id='save'>Save</button>
+  <button id='cancel'>Cancel</button>
+</div>
+</body>
+</html>
