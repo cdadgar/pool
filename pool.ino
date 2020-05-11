@@ -97,12 +97,6 @@ const char *weekdayNames[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
 // --------------------------------------------
 
-#define LOGGING_IP_ADDR "192.168.1.210"
-#define LOGGING_IP_PORT 80
-#define LOG_URL "http://cpd.us.to:90/pool/"
-
-// --------------------------------------------
-
 
 /*
 note: had to modify LiquidCrystal_I2C.cpp and remove Wire.begin()
@@ -259,10 +253,6 @@ typedef struct {
   byte sensorId[3];
   byte temperature_span;
   byte display_timeout;
-  byte use_logging;
-  char logging_ip_addr[17];
-  int  logging_ip_port;
-  char log_url[40];
 } configType;
 
 configType config;
@@ -1445,10 +1435,6 @@ void loadConfig(void) {
     config.sensorId[2] = 2;
     config.temperature_span = 5;
     config.display_timeout = 20;
-    config.use_logging = 1;
-    set(config.logging_ip_addr, LOGGING_IP_ADDR);
-    config.logging_ip_port = LOGGING_IP_PORT;
-    set(config.log_url, LOG_URL);
 
     saveConfig();
   }
@@ -1473,10 +1459,6 @@ void loadConfig(void) {
   Serial.printf("sensorId[2] %d\n", config.sensorId[2]);
   Serial.printf("temperature_span %d\n", config.temperature_span);
   Serial.printf("display_timeout %d\n", config.display_timeout);
-  Serial.printf("use_logging %d\n", config.use_logging);
-  Serial.printf("logging_ip_addr %s\n", config.logging_ip_addr);
-  Serial.printf("logging_ip_port %d\n", config.logging_ip_port);
-  Serial.printf("log_url %s\n", config.log_url);
 }
 
 
@@ -1642,7 +1624,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
         printTargetTemperature(false);
         printPressure(false);
         printTime(false, false, false);
-        sendWeb("log_url", config.log_url);
       }
       else if (strcmp((char *)payload,"/program") == 0) {
         programClient = num;
@@ -1671,10 +1652,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
         sprintf(json+strlen(json), ",\"sensor0\":\"%d\"", config.sensorId[0]);
         sprintf(json+strlen(json), ",\"sensor1\":\"%d\"", config.sensorId[1]);
         sprintf(json+strlen(json), ",\"sensor2\":\"%d\"", config.sensorId[2]);
-        sprintf(json+strlen(json), ",\"use_logging\":\"%d\"", config.use_logging);
-        sprintf(json+strlen(json), ",\"logging_ip_addr\":\"%s\"", config.logging_ip_addr);
-        sprintf(json+strlen(json), ",\"logging_ip_port\":\"%d\"", config.logging_ip_port);
-        sprintf(json+strlen(json), ",\"log_url\":\"%s\"", config.log_url);
         strcpy(json+strlen(json), "}");
 //        Serial.printf("len %d\n", strlen(json));
         webSocket.sendTXT(setupClient, json, strlen(json));
@@ -1788,26 +1765,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
           ptr = strstr((char *)payload, target) + strlen(target)+3;
           config.sensorId[2] = strtol(ptr, &ptr, 10);
   
-          target = "use_logging";
-          ptr = strstr((char *)payload, target) + strlen(target)+3;
-          config.use_logging = strtol(ptr, &ptr, 10);
-          
-          target = "logging_ip_addr";
-          ptr = strstr((char *)payload, target) + strlen(target)+3;
-          end = strchr(ptr, '\"');
-          memcpy(config.logging_ip_addr, ptr, (end-ptr));
-          config.logging_ip_addr[end-ptr] = '\0';
-
-          target = "logging_ip_port";
-          ptr = strstr((char *)payload, target) + strlen(target)+3;
-          config.logging_ip_port = strtol(ptr, &ptr, 10);
-
-          target = "log_url";
-          ptr = strstr((char *)payload, target) + strlen(target)+3;
-          end = strchr(ptr, '\"');
-          memcpy(config.log_url, ptr, (end-ptr));
-          config.log_url[end-ptr] = '\0';
-
     Serial.printf("host_name %s\n", config.host_name);
     Serial.printf("use_mqtt %d\n", config.use_mqtt);
     Serial.printf("mqtt_ip_addr %s\n", config.mqtt_ip_addr);
@@ -1817,10 +1774,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
     Serial.printf("sensor0 %d\n", config.sensorId[0]);
     Serial.printf("sensor1 %d\n", config.sensorId[1]);
     Serial.printf("sensor2 %d\n", config.sensorId[2]);
-    Serial.printf("use_logging %d\n", config.use_logging);
-    Serial.printf("logging_ip_addr %s\n", config.logging_ip_addr);
-    Serial.printf("logging_ip_port %d\n", config.logging_ip_port);
-    Serial.printf("log_url %s\n", config.log_url);
           saveConfig();
         }
       }
@@ -1831,186 +1784,39 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
 }
 
 
-const char http_path_temperature[] = "/pool/remote/insertTemperature.php";
-const char http_path_action[] = "/pool/remote/insertAction.php";
-const char http_path_target[] = "/pool/remote/insertTarget.php";
-
-
 void logTemperature(float air, float roof, float pool) {
-  if (!config.use_logging)
-    return;
-
-  AsyncClient* aclient = new AsyncClient();
-
-  float* data = new float[3];
-  data[0] = air;
-  data[1] = roof;
-  data[2] = pool;
-  
-  aclient->onConnect([](void *obj, AsyncClient* c) {
-//    Serial.printf("[A-TCP] onConnect\n");
-    
-    float* data = (float*) obj;
-    float air = data[0];
-    float roof = data[1];
-    float pool = data[2];
-    free(obj);
-    
-    // after connecting, send the request
-    // Make an HTTP GET request
-    c->write( "GET ");
-    c->write( http_path_temperature );
-    c->write("?air=");
-    c->write( String(air).c_str() );
-    c->write("&");
-    c->write("roof=");
-    c->write( String(roof).c_str() );
-    c->write("&");
-    c->write("pool=");
-    c->write( String(pool).c_str() );
-    c->write( " HTTP/1.1\r\n");
-    c->write("Host: ");
-    c->write(config.logging_ip_addr);
-    c->write( "\r\nContent-Type: application/x-www-form-urlencoded\r\n" );
-    c->write("Connection: close\r\n\r\n");
-    c->stop();
-
-    Serial.print("logged temperature: air: ");
-    Serial.print(air,1);
-    Serial.print(" roof: ");
-    Serial.print(roof,1);
-    Serial.print(" pool: ");
-    Serial.println(pool,1);
-  }, data);
-
-  aclient->onDisconnect([](void *obj, AsyncClient* c) {
-//    Serial.printf("[A-TCP] onDisconnect\n");
-    free(c);
-  }, NULL);
-
-  aclient->onError([](void *obj, AsyncClient* c, int8_t err) {
-    Serial.printf("logTemperature [A-TCP] onError: %s\n", c->errorToString(err));
-  }, NULL);
-
-  aclient->onData([](void *obj, AsyncClient* c, void *buf, size_t len) {
-//    Serial.printf("[A-TCP] onData: %s\n", buf);
-  }, NULL);
-
-//  Serial.printf("connecting to %s:%d\n", config.logging_ip_addr, config.logging_ip_port);
-//  unsigned long t = millis();
-  if (!aclient->connect(config.logging_ip_addr, config.logging_ip_port)) {
-//    Serial.printf("connect failed %d\n", (millis() - t));
-    free(aclient);
-    free(data);
+  if (config.use_mqtt) {
+    // mqtt
+    char topic[30];
+    sprintf(topic, "%s/temperature", config.host_name);
+    char json[128];
+    sprintf(json, "{\"air\":\"%f\",\"roof\":\"%f\",\"pool\":\"%f\"}",
+      air, roof, pool);
+    client.publish(topic, json);
   }
 }
 
 
 void logAction(char action) {
-  if (!config.use_logging)
-    return;
-    
-  char* str = new char[2];
-  str[0] = action;
-  str[1] = '\0';
-
-  AsyncClient* aclient = new AsyncClient();
-
-  aclient->onConnect([](void *obj, AsyncClient* c) {
-//    Serial.printf("[A-TCP] onConnect\n");
-    // after connecting, send the request
-    // Make an HTTP GET request
-    c->write( "GET ");
-    c->write( http_path_action );
-    c->write("?action=");
-    char* str = (char*) obj;
-    c->write( str );
-    c->write( " HTTP/1.1\r\n");
-    c->write("Host: ");
-    c->write(config.logging_ip_addr);
-    c->write( "\r\nContent-Type: application/x-www-form-urlencoded\r\n" );
-    c->write("Connection: close\r\n\r\n");
-    c->stop();
-
-    Serial.print("logged action: ");
-    Serial.println(str);
-    free(str);
-  }, str);
-
-  aclient->onDisconnect([](void *obj, AsyncClient* c) {
-//    Serial.printf("[A-TCP] onDisconnect\n");
-    free(c);
-  }, NULL);
-
-  aclient->onError([](void *obj, AsyncClient* c, int8_t err) {
-    Serial.printf("logAction [A-TCP] onError: %s\n", c->errorToString(err));
-  }, NULL);
-
-  aclient->onData([](void *obj, AsyncClient* c, void *buf, size_t len) {
-//    Serial.printf("[A-TCP] onData: %s\n", buf);
-  }, NULL);
-
-//  Serial.printf("connecting to %s:%d\n", config.logging_ip_addr, config.logging_ip_port);
-  if (!aclient->connect(config.logging_ip_addr, config.logging_ip_port)) {
-    free(aclient);
-    free(str);
+  if (config.use_mqtt) {
+    // mqtt
+    char topic[30];
+    sprintf(topic, "%s/action", config.host_name);
+    char buf[10];
+    sprintf(buf, "%c", action);
+    client.publish(topic, buf);
   }
 }
 
 
 void logTarget(int temperature) {
-  if (!config.use_logging)
-    return;
-
-  if (temperature == TEMP_ERROR)
-    return;
-    
-  int* data = new int[1];
-  data[0] = temperature;
-
-  AsyncClient* aclient = new AsyncClient();
-
-  aclient->onConnect([](void *obj, AsyncClient* c) {
-//    Serial.printf("[A-TCP] onConnect\n");
-    
-    int* data = (int*) obj;
-    int temperature = data[0];
-    free(obj);
-    
-    // after connecting, send the request
-    // Make an HTTP GET request
-    c->write( "GET ");
-    c->write( http_path_target );
-    c->write("?temperature=");
-    c->write( String(temperature).c_str() );
-    c->write( " HTTP/1.1\r\n");
-    c->write("Host: ");
-    c->write(config.logging_ip_addr);
-    c->write( "\r\nContent-Type: application/x-www-form-urlencoded\r\n" );
-    c->write("Connection: close\r\n\r\n");
-    c->stop();
-
-    Serial.print("logged target: ");
-    Serial.println(temperature);
-  }, data);
-
-  aclient->onDisconnect([](void *obj, AsyncClient* c) {
-//    Serial.printf("[A-TCP] onDisconnect\n");
-    free(c);
-  }, NULL);
-
-  aclient->onError([](void *obj, AsyncClient* c, int8_t err) {
-    Serial.printf("logTarget [A-TCP] onError: %s\n", c->errorToString(err));
-  }, NULL);
-
-  aclient->onData([](void *obj, AsyncClient* c, void *buf, size_t len) {
-//    Serial.printf("[A-TCP] onData: %s\n", buf);
-  }, NULL);
-
-//  Serial.printf("connecting to %s:%d\n", config.logging_ip_addr, config.logging_ip_port);
-  if (!aclient->connect(config.logging_ip_addr, config.logging_ip_port)) {
-    free(aclient);
-    free(data);
+  if (config.use_mqtt) {
+    // mqtt
+    char topic[30];
+    sprintf(topic, "%s/target", config.host_name);
+    char buf[10];
+    sprintf(buf, "%d", temperature);
+    client.publish(topic, buf);
   }
 }
 
@@ -2221,24 +2027,45 @@ void reconnect() {
 
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  // only topic we get is <host_name>/command or nightlight
+  // only topic we get is <host_name>/command
   
+  // strip off the hostname from the topic
+  topic += strlen(config.host_name) + 1;
+    
   char value[12];
   memcpy(value, payload, length);
   value[length] = '\0';
   Serial.printf("Message arrived [%s] %s\n", topic, value);
 
-//  if (strcmp(topic, "command") == 0) {
-//    // cpd...do something
-//      
-//    // also send to main display
-//    if (webClient != -1) {
-//      sendWeb("code", value);
-//    }
-//  }
-//  else {
-//    Serial.printf("Unknown topic\n");
-//  }
+  if (strcmp(topic, "command") == 0) {
+    char action = *value;
+    if (action == PUMP_OFF) {
+      // cpd
+//      config.mode = RUN;
+//      modeChange(false);
+    }
+    else if (action == PUMP_ON) {
+      // cpd
+//      config.mode = OFF;
+//      modeChange(false);
+    }
+    else if (action == SOLAR_OFF) {
+      // cpd
+//      config.mode = OFF;
+//      modeChange(false);
+    }
+    else if (action == SOLAR_ON) {
+      // cpd
+//      config.mode = OFF;
+//      modeChange(false);
+    }
+    else {
+      Serial.printf("Unknown action: %c\n", action);
+    }
+  }
+  else {
+    Serial.printf("Unknown topic: %s\n", topic);
+  }
 }
 
 
