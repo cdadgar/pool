@@ -95,7 +95,7 @@ function doSave() {
       host_name: $('#host_name').val(),
       use_mqtt: $('#use_mqtt').is(':checked') ? '1' : '0',
       mqtt_ip_addr: $('#mqtt_ip_addr').val(),
-      mqtt_ip_port: $('#mqtt_ip_port').val()
+      mqtt_ip_port: $('#mqtt_ip_port').val(),
       span: String(parseFloat($('#span').val()) * 10),
       timeout: $('#timeout').val(),
       sensor0: $('#sensor0').val(),
@@ -139,7 +139,8 @@ function close() {
   </select><br>
   <button id='spiffs'>SPIFFS</button>
   <button id='ota'>OTA Update</button><br><br>
-  <!-- <button id='reboot'>Reboot</button><br><br> -->
+  <button id='reboot'>Reboot</button>
+  <button id='wifi'>Reset Wifi</button><br><br>
   <button id='save'>Save</button>
   <button id='cancel'>Cancel</button>
 </div>

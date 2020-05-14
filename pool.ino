@@ -5,8 +5,6 @@
 
 /*
  * todo:
- *  - add ota
- *  - add mqtt
  */
 
 /*
@@ -96,16 +94,6 @@ ESP8266HTTPUpdateServer httpUpdater;
 const char *weekdayNames[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
 // --------------------------------------------
-
-
-/*
-note: had to modify LiquidCrystal_I2C.cpp and remove Wire.begin()
-so that we can reconfigure the i2c pins
-could have also used Wire.pins(sda,scl), but it has been deprecated
-
-the 16x2 display needs to run on 5v so that the brightness is visible.
-all the the other lines work at 3.3V
-*/
 
 #define SDA 0
 #define SCL 2
@@ -349,8 +337,9 @@ void setup() {
   loadProgramConfig();
   isMemoryReset = false;
 
-  if (!setupTempSensor())
-    return;
+  if (!setupTempSensor()) {
+    // return;
+  }
 
   setupPressureSensor();
   setupPump();
@@ -486,6 +475,14 @@ high pressure: 40 psi
 }
 
 
+void printName() {
+  if (webClient == -1)
+    return;
+    
+  sendWeb("name", config.host_name);
+}
+
+
 void configModeCallback(WiFiManager *myWiFiManager) {
   // this callback gets called when the enter AP mode, and the users
   // need to connect to us in order to configure the wifi
@@ -601,7 +598,7 @@ void setupTime(void) {
 
 void setupDisplay(void) {
   // initialize the lcd 
-  lcd.begin();
+  lcd.init();
   lcd.clear();
 
   displayBacklight(true);
@@ -799,6 +796,13 @@ void printTemperature(bool isDisplay, int index) {
     sendWeb(tempNames[index], buf);  
   }
 
+  // mqtt
+  if (config.use_mqtt) {
+    char topic[20];
+    sprintf(topic, "%s/temperature/%d", config.host_name, index);
+    client.publish(topic, buf);
+  }  
+
   // send out the air temperature to connected clients
   if (index == AIR)
     sendAirTemperature(lastTemp[index]);
@@ -915,7 +919,9 @@ void checkTemperature(unsigned long time) {
     checkSolar();
 
     // read the pressure sensor here as well
-    checkPressure();
+    // cpd...skip for now
+    // also, don't check too often
+    // checkPressure();
   }
 }
 
@@ -1190,18 +1196,18 @@ void doPumpButton(void) {
 
 void pumpModeChange(void) {
   saveConfig();
+  checkPump();
   printPumpModeState(true);
   printPumpState(true);
-  checkPump();
 }
 
 
 void solarModeChange(void) {
   saveConfig();
+  checkSolar();
   printSolarModeState(true);
   printSolarState(true);
   printTargetTemperature(true);
-  checkSolar();
 }
 
 
@@ -1615,6 +1621,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
         webClient = num;
       
         // send the current state
+        printName();
         printPumpModeState(false);
         printSolarModeState(false);
         printPumpState(false);
@@ -2040,24 +2047,20 @@ void callback(char* topic, byte* payload, unsigned int length) {
   if (strcmp(topic, "command") == 0) {
     char action = *value;
     if (action == PUMP_OFF) {
-      // cpd
-//      config.mode = RUN;
-//      modeChange(false);
+        config.pumpMode = OFF;
+        pumpModeChange();
     }
     else if (action == PUMP_ON) {
-      // cpd
-//      config.mode = OFF;
-//      modeChange(false);
+        config.pumpMode = ON;
+        pumpModeChange();
     }
     else if (action == SOLAR_OFF) {
-      // cpd
-//      config.mode = OFF;
-//      modeChange(false);
+        config.solarMode = OFF;
+        solarModeChange();
     }
     else if (action == SOLAR_ON) {
-      // cpd
-//      config.mode = OFF;
-//      modeChange(false);
+        config.solarMode = ON;
+        solarModeChange();
     }
     else {
       Serial.printf("Unknown action: %c\n", action);
@@ -2086,34 +2089,6 @@ test with oscope
 
 -----------------------------------
 
-mail.php on pogoplug2 will send an email
-(installed PhpMailer on pogoplug)
-used yahoo as the smtp server
-had to change account and set allow less secure
-pool app will need to hit php page to send the email.
-since yahoo and most other email servers require ssl which the esp8266 can't do
-
-
-database setup:
-CREATE database `pool`
-create table action (
-  ts timestamp DEFAULT CURRENT_TIMESTAMP,
-  action char
-);
-insert into action (state) values ('c')
-
-create table target (
-  ts timestamp DEFAULT CURRENT_TIMESTAMP,
-  temperature int
-);
-insert into target (temperature) values (78)
-
-CREATE TABLE temps (
-  ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  air FLOAT,
-  roof FLOAT,
-  pool FLOAT
-);
 
 
 probably need to add a i2c mux since we're out of gpio pins and we'd to interface to the spa heater someday
